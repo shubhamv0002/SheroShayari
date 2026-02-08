@@ -28,6 +28,7 @@ public class EmailSender : IEmailSender
         var sanitizedEmail = (email ?? string.Empty)
             .Replace("\r", string.Empty)
             .Replace("\n", string.Empty);
+        var maskedEmail = MaskEmailForLogging(sanitizedEmail);
 
         try
         {
@@ -100,13 +101,13 @@ public class EmailSender : IEmailSender
                 // Send the actual email
                 try
                 {
-                    _logger.LogInformation("Sending email to {Recipient} with subject '{Subject}'", sanitizedEmail, subject);
+                    _logger.LogInformation("Sending email to {Recipient} with subject '{Subject}'", maskedEmail, subject);
                     await client.SendAsync(message);
-                    _logger.LogInformation("✅ Email sent successfully to {Recipient}", sanitizedEmail);
+                    _logger.LogInformation("✅ Email sent successfully to {Recipient}", maskedEmail);
                 }
                 catch (Exception sendEx)
                 {
-                    _logger.LogError(sendEx, "❌ Failed to send email to {Recipient}. Error: {Message}", sanitizedEmail, sendEx.Message);
+                    _logger.LogError(sendEx, "❌ Failed to send email to {Recipient}. Error: {Message}", maskedEmail, sendEx.Message);
                     throw; // Re-throw for caller to handle
                 }
                 finally
@@ -137,6 +138,36 @@ public class EmailSender : IEmailSender
         {
             // Log and re-throw unexpected exceptions
             _logger.LogError(ex, "Unexpected error in SendEmailAsync: {ExceptionType}: {Message}", 
+
+    /// <summary>
+    /// Returns a privacy-preserving representation of an email address for logging purposes.
+    /// Example: "john.doe@example.com" -> "j********@example.com"
+    /// </summary>
+    private static string MaskEmailForLogging(string email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return string.Empty;
+        }
+
+        var atIndex = email.IndexOf('@');
+        if (atIndex <= 0)
+        {
+            // Not a standard email format; avoid logging raw value.
+            return "***";
+        }
+
+        var localPart = email.Substring(0, atIndex);
+        var domainPart = email.Substring(atIndex);
+
+        if (localPart.Length == 1)
+        {
+            return localPart + "***" + domainPart;
+        }
+
+        var visibleChar = localPart[0];
+        return visibleChar + new string('*', localPart.Length - 1) + domainPart;
+    }
                 ex.GetType().Name, ex.Message);
             throw;
         }
