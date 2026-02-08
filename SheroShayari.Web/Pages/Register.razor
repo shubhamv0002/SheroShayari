@@ -1,0 +1,156 @@
+@page "/register"
+@using SheroShayari.Web.Models
+@using SheroShayari.Web.Services
+@using MudBlazor
+@using System.ComponentModel.DataAnnotations
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>Register - SheroShayari</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="py-8">
+    <MudStack Spacing="3">
+        <MudText Typo="Typo.h3" Class="text-center">Create Your Account</MudText>
+        <MudText Typo="Typo.body2" Class="text-center text-secondary">
+            Join SheroShayari to create and share your poetry
+        </MudText>
+
+        <MudPaper Elevation="2" Class="pa-6">
+            <MudForm @ref="form" Model="@registerModel">
+                <MudTextField 
+                    @bind-Value="registerModel.FullName"
+                    Label="Full Name"
+                    HelperText="Enter your full name"
+                    Variant="Variant.Outlined"
+                    FullWidth="true"
+                    Class="mb-4"
+                    Disabled="isLoading"
+                    Required="true"
+                    RequiredError="Full name is required" />
+
+                <MudTextField 
+                    @bind-Value="registerModel.Email"
+                    Label="Email"
+                    HelperText="Enter your email"
+                    Variant="Variant.Outlined"
+                    FullWidth="true"
+                    Class="mb-4"
+                    Disabled="isLoading"
+                    Required="true"
+                    RequiredError="Email is required"
+                    Validation='@(new EmailAddressAttribute { ErrorMessage = "Invalid email address" })' />
+
+                <MudTextField 
+                    @bind-Value="registerModel.Password"
+                    Label="Password"
+                    HelperText="Minimum 6 characters"
+                    Type="InputType.Password"
+                    Variant="Variant.Outlined"
+                    FullWidth="true"
+                    Class="mb-4"
+                    Disabled="isLoading"
+                    Required="true"
+                    RequiredError="Password is required" />
+
+                <MudTextField 
+                    @bind-Value="registerModel.ConfirmPassword"
+                    Label="Confirm Password"
+                    Type="InputType.Password"
+                    Variant="Variant.Outlined"
+                    FullWidth="true"
+                    Class="mb-6"
+                    Disabled="isLoading"
+                    Required="true"
+                    RequiredError="Please confirm your password" />
+
+                <MudButton 
+                    Variant="Variant.Filled"
+                    Color="Color.Primary"
+                    Size="Size.Large"
+                    FullWidth="true"
+                    OnClick="HandleRegister"
+                    Disabled="isLoading">
+                    @if (isLoading)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    }
+                    @if (isLoading) { <span>Creating account...</span> } else { <span>Register</span> }
+                </MudButton>
+
+                <MudDivider Class="my-6" />
+
+                <MudText Typo="Typo.body2" Class="text-center">
+                    Already have an account? 
+                    <MudLink Href="/login">Login here</MudLink>
+                </MudText>
+            </MudForm>
+        </MudPaper>
+    </MudStack>
+</MudContainer>
+
+@code {
+    private MudForm form = null!;
+    private bool isLoading = false;
+    private RegisterRequest registerModel = new RegisterRequest 
+    { 
+        Email = "", 
+        Password = "", 
+        ConfirmPassword = "", 
+        FullName = "" 
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        // If user is already authenticated, redirect to home
+        await AuthService.InitializeAsync();
+        if (AuthService.IsAuthenticated())
+        {
+            Navigation.NavigateTo("/", replace: true);
+            return;
+        }
+    }
+
+    private async Task HandleRegister()
+    {
+        if (form == null) return;
+        
+        // Custom validation
+        if (string.IsNullOrWhiteSpace(registerModel.Password) || registerModel.Password.Length < 6)
+        {
+            Snackbar.Add("Password must be at least 6 characters.", Severity.Warning);
+            return;
+        }
+        
+        if (registerModel.Password != registerModel.ConfirmPassword)
+        {
+            Snackbar.Add("Passwords do not match.", Severity.Warning);
+            return;
+        }
+        
+        await form.Validate();
+        if (!form.IsValid) return;
+
+        isLoading = true;
+
+        var (success, message, data) = await AuthService.RegisterAsync(
+            registerModel.Email,
+            registerModel.Password,
+            registerModel.ConfirmPassword,
+            registerModel.FullName
+        );
+
+        isLoading = false;
+
+        if (success)
+        {
+            Snackbar.Add(message, Severity.Success);
+            await Task.Delay(500);
+            Navigation.NavigateTo("/login");
+        }
+        else
+        {
+            Snackbar.Add(message, Severity.Error);
+        }
+    }
+}

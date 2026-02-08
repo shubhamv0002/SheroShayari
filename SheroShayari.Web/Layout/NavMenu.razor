@@ -1,0 +1,100 @@
+﻿@using SheroShayari.Web.Services
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="">SheroShayari</a>
+        <div class="ms-auto d-flex align-items-center">
+            @if (isAuthenticated)
+            {
+                <span class="text-light me-3">Welcome, @GetDisplayName()</span>
+                <button class="btn btn-sm btn-outline-light" @onclick="HandleLogout" style="white-space: nowrap; display: block !important; visibility: visible !important; opacity: 1 !important;">Logout</button>
+            }
+            else
+            {
+                 <MudLink Href="/login" class="btn btn-sm btn-outline-light me-2">Login</MudLink>
+                 <MudLink Href="/register" class="btn btn-sm btn-light">Register</MudLink>
+            }
+        </div>
+        <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+    </div>
+</div>
+
+<div class="@NavMenuCssClass nav-scrollable" @onclick="ToggleNavMenu">
+    <nav class="nav flex-column">
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
+            </NavLink>
+        </div>
+        @if (AuthService.IsAuthenticated())
+        {
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="my-shayaris">
+                    <span class="bi bi-collection-fill-nav-menu" aria-hidden="true"></span> My Shayaris
+                </NavLink>
+            </div>
+        }
+    </nav>
+</div>
+
+@code {
+    private bool collapseNavMenu = true;
+    private bool isAuthenticated = false;
+
+    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Ensure auth is initialized
+        await AuthService.InitializeAsync();
+        isAuthenticated = AuthService.IsAuthenticated();
+        await InvokeAsync(() => StateHasChanged());
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            isAuthenticated = AuthService.IsAuthenticated();
+            StateHasChanged();
+        }
+    }
+
+    private void ToggleNavMenu()
+    {
+        collapseNavMenu = !collapseNavMenu;
+    }
+
+    private string GetDisplayName()
+    {
+        var user = AuthService.GetCurrentUser();
+        
+        // Try to use FullName if available and not empty
+        if (!string.IsNullOrWhiteSpace(user?.FullName) && !user.FullName.Contains("@"))
+        {
+            return user.FullName;
+        }
+
+        // Otherwise extract name from email (part before @)
+        if (!string.IsNullOrWhiteSpace(user?.Email))
+        {
+            var namePart = user.Email.Split('@')[0];
+            return namePart;
+        }
+
+        return "User";
+    }
+
+    private async Task HandleLogout()
+    {
+        await AuthService.LogoutAsync();
+        isAuthenticated = false;
+        StateHasChanged();
+        Navigation.NavigateTo("/login");
+    }
+}
+

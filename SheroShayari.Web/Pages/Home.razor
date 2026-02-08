@@ -1,0 +1,366 @@
+﻿@page "/"
+@using SheroShayari.Web.Models
+@using SheroShayari.Web.Services
+@using MudBlazor
+@inject IShayariApiClient ApiClient
+@inject IAuthService AuthService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>Poetry Generation & Discovery</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="py-8">
+    <!-- Subtitle -->
+    <MudStack Spacing="2" Class="mb-8">
+        <MudText Typo="Typo.subtitle1" Class="text-center hero-subtitle">
+            Generate, Celebrate and Share Poetry in Hindi, Urdu, English, and More
+        </MudText>
+    </MudStack>
+
+    @if (!AuthService.IsAuthenticated())
+    {
+        <!-- Unauthenticated User Section -->
+        <MudAlert Severity="Severity.Info" Class="mb-8">
+            <MudStack Spacing="1">
+                <MudText Typo="Typo.body2">Welcome to Poetry Generation!</MudText>
+                <MudText Typo="Typo.caption">
+                    <MudLink Href="/login">Login</MudLink> or <MudLink Href="/register">Register</MudLink> to create your own beautiful Shayaris
+                </MudText>
+            </MudStack>
+        </MudAlert>
+    }
+    else
+    {
+        <!-- Generation Form Section -->
+        <MudPaper Elevation="2" Class="form-section pa-6 mb-8">
+            <MudStack Spacing="3">
+                <MudText Typo="Typo.h5">Create Your Shayari</MudText>
+
+                <!-- Prompt Input -->
+                <MudTextField 
+                    @bind-value="userInput" 
+                    Label="Poetry Prompt or Theme"
+                    Placeholder="Enter a theme or prompt for your Shayari..."
+                    FullWidth="true"
+                    Variant="Variant.Outlined"
+                    AdornmentIcon="@Icons.Material.Filled.Lightbulb"
+                    Adornment="Adornment.Start"
+                    Class="input-field"
+                    Disabled="isLoading"
+                    Lines="3"
+                    @onkeyup="OnInputKeyUp" />
+
+                <!-- Language Dropdown -->
+                <MudSelect @bind-Value="selectedLanguage" 
+                    Label="Language" 
+                    Placeholder="Select a language..."
+                    Variant="Variant.Outlined" 
+                    FullWidth="true"
+                    Dense="false">
+                    <MudSelectItem Value="@((string?)null)">-- Select Language --</MudSelectItem>
+                    @foreach (var lang in ShayariConstants.Languages)
+                    {
+                        <MudSelectItem Value="@lang">@lang</MudSelectItem>
+                    }
+                </MudSelect>
+
+                <!-- Category Dropdown -->
+                <MudSelect @bind-Value="selectedCategory" 
+                    Label="Category" 
+                    Placeholder="Select a category..."
+                    Variant="Variant.Outlined" 
+                    FullWidth="true"
+                    Dense="false">
+                    <MudSelectItem Value="@((string?)null)">-- Select Category --</MudSelectItem>
+                    @foreach (var cat in ShayariConstants.Categories)
+                    {
+                        <MudSelectItem Value="@cat">@cat</MudSelectItem>
+                    }
+                </MudSelect>
+
+                <!-- Optional Context Field (visible only for "Other" category) -->
+                @if (selectedCategory == "Other")
+                {
+                    <MudAlert Severity="Severity.Warning" Class="mb-2">
+                        Please provide additional context or scenario for your Shayari
+                    </MudAlert>
+                    <MudTextField 
+                        @bind-value="additionalContext" 
+                        Label="Additional Context/Scenario (Required for 'Other')"
+                        Placeholder="Describe the context, emotion, or scenario..."
+                        FullWidth="true"
+                        Variant="Variant.Outlined"
+                        Lines="2"
+                        Disabled="isLoading"
+                        Error="@(selectedCategory == "Other" && string.IsNullOrWhiteSpace(additionalContext))"
+                        ErrorText="@(selectedCategory == "Other" && string.IsNullOrWhiteSpace(additionalContext) ? "Context is required for 'Other' category" : "")" />
+                }
+                else
+                {
+                    <MudTextField 
+                        @bind-value="additionalContext" 
+                        Label="Additional Context/Scenario (Optional)"
+                        Placeholder="Add optional context or mood for your Shayari..."
+                        FullWidth="true"
+                        Variant="Variant.Outlined"
+                        Lines="2"
+                        Disabled="isLoading" />
+                }
+
+                <!-- Generate Button -->
+                <MudButton 
+                    Variant="Variant.Filled" 
+                    Color="Color.Secondary"
+                    Size="Size.Large"
+                    FullWidth="true"
+                    OnClick="GenerateShayari"
+                    Disabled="@IsGenerateDisabled()">
+                    @if (isLoading)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    }
+                    Generate Shayari
+                </MudButton>
+            </MudStack>
+        </MudPaper>
+
+        <!-- Loading State -->
+        @if (isLoading)
+        {
+            <MudStack AlignItems="AlignItems.Center" Spacing="2" Class="my-8">
+                <MudProgressCircular Size="Size.Large" Indeterminate="true" Color="Color.Secondary" />
+                <MudText Typo="Typo.body2" Class="text-center">Composing your beautiful Shayari...</MudText>
+            </MudStack>
+        }
+
+        <!-- Results Section -->
+        @if (!isLoading && shayaris.Count > 0)
+        {
+            <MudStack Spacing="3" Class="mb-8">
+                <MudText Typo="Typo.h5">Your Generated Shayari</MudText>
+
+                <MudGrid>
+                    @foreach (var shayari in shayaris)
+                    {
+                        <MudItem xs="12" sm="6" md="4" Class="mb-4">
+                            <MudCard Class="shayari-card h-100">
+                                <MudCardContent>
+                                    @if (shayari.IsAiGenerated)
+                                    {
+                                        <MudChip T="string" Color="Color.Secondary" Icon="@Icons.Material.Filled.AutoAwesome" Size="Size.Small" Class="mb-3">
+                                            AI Generated
+                                        </MudChip>
+                                    }
+
+                                    <MudText Typo="Typo.body1" Class="shayari-content mb-3">
+                                        "@shayari.Content"
+                                    </MudText>
+
+                                    <MudDivider Class="my-2" />
+
+                                    <MudStack Spacing="1" Class="mt-3">
+                                        <MudText Typo="Typo.caption">
+                                            <strong>Poet:</strong> @shayari.Poet
+                                        </MudText>
+                                        <MudText Typo="Typo.caption">
+                                            <strong>Language:</strong> @shayari.Language
+                                        </MudText>
+                                        <MudText Typo="Typo.caption">
+                                            <strong>Category:</strong> @shayari.Category
+                                        </MudText>
+                                    </MudStack>
+
+                                    @if (!string.IsNullOrEmpty(shayari.Meaning))
+                                    {
+                                        <MudExpansionPanel T="string" Class="mt-2">
+                                            <TitleContent>
+                                                <MudText Typo="Typo.subtitle2">Meaning</MudText>
+                                            </TitleContent>
+                                            <ChildContent>
+                                                <MudText Typo="Typo.body2">@shayari.Meaning</MudText>
+                                            </ChildContent>
+                                        </MudExpansionPanel>
+                                    }
+
+                                    <MudDivider Class="my-2" />
+                                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="mt-2">
+                                        <MudText Typo="Typo.caption" Color="Color.Tertiary">
+                                            @shayari.CreatedAt.ToString("MMM dd, yyyy")
+                                        </MudText>
+                                        <MudSpacer />
+                                    </MudStack>
+                                </MudCardContent>
+                            </MudCard>
+                        </MudItem>
+                    }
+                </MudGrid>
+            </MudStack>
+        }
+
+        <MudButton Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined" class="align-items-end" OnClick="() => NavigateToMyShayaris()">
+                                            MyShayaris
+                                        </MudButton>
+        @if (!isLoading && shayaris.Count == 0 && !string.IsNullOrEmpty(userInput))
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-8">
+                Failed to generate your Shayari. Please try again with different input.
+            </MudAlert>
+        }
+    }
+</MudContainer>
+
+@code {
+    private string userInput = "";
+    private string? selectedLanguage = null;
+    private string? selectedCategory = null;
+    private string? additionalContext = null;
+    private List<ShayariDto> shayaris = new();
+    private bool isLoading = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Wait for auth to be fully initialized
+        await Task.Delay(150);
+        
+        if (!AuthService.IsAuthenticated())
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        // Keep selectedLanguage and selectedCategory as null to show placeholders
+        // User must explicitly select from dropdowns
+    }
+
+    private bool IsGenerateDisabled()
+    {
+        if (isLoading) return true;
+        if (string.IsNullOrWhiteSpace(userInput)) return true;
+        if (string.IsNullOrWhiteSpace(selectedLanguage)) return true;
+        if (string.IsNullOrWhiteSpace(selectedCategory)) return true;
+        if (selectedCategory == "Other" && string.IsNullOrWhiteSpace(additionalContext)) return true;
+        return false;
+    }
+
+    private async Task GenerateShayari()
+    {
+        if (!AuthService.IsAuthenticated())
+        {
+            Snackbar.Add("Please login to generate Shayaris.", Severity.Warning);
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(userInput))
+        {
+            Snackbar.Add("Please enter a prompt for generation.", Severity.Warning);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(selectedLanguage))
+        {
+            Snackbar.Add("Please select a language.", Severity.Warning);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(selectedCategory))
+        {
+            Snackbar.Add("Please select a category.", Severity.Warning);
+            return;
+        }
+
+        // Validate context for "Other" category
+        if (selectedCategory == "Other" && string.IsNullOrWhiteSpace(additionalContext))
+        {
+            Snackbar.Add("Context is required for 'Other' category.", Severity.Warning);
+            return;
+        }
+
+        isLoading = true;
+
+        try
+        {
+            var request = new GenerateShayariRequest
+            {
+                Prompt = userInput,
+                Language = selectedLanguage,
+                Category = selectedCategory,
+                AdditionalContext = additionalContext
+            };
+
+            var response = await ApiClient.GenerateAsync(request);
+            
+
+            if (response != null && response.WasSaved)
+            {
+                shayaris = new List<ShayariDto> { response.Shayari };
+                Snackbar.Add("Shayari generated successfully!", Severity.Success);
+                userInput = "";
+                additionalContext = null;
+                selectedLanguage = null;
+                selectedCategory = null;
+            }
+            else
+            {
+                Snackbar.Add("Failed to generate Shayari. Please try again.", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void NavigateToMyShayaris()
+    {
+        Navigation.NavigateTo("/my-shayaris");
+    }
+
+    private Task OnInputKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            return GenerateShayari();
+        }
+        return Task.CompletedTask;
+    }
+}
+
+<style>
+    .hero-subtitle {
+        color: #D4AF37;
+        font-weight: 400;
+    }
+
+    .form-section {
+        background: linear-gradient(135deg, rgba(107, 76, 154, 0.1) 0%, rgba(212, 175, 55, 0.05) 100%);
+        border-left: 4px solid #D4AF37;
+    }
+
+    .input-field {
+        font-size: 1.1rem;
+    }
+
+    .shayari-card {
+        background: rgba(26, 26, 26, 0.8);
+        border: 1px solid rgba(212, 175, 55, 0.2);
+        transition: all 0.3s ease;
+    }
+
+    .shayari-card:hover {
+        border-color: #D4AF37;
+        box-shadow: 0 8px 24px rgba(212, 175, 55, 0.15);
+        transform: translateY(-4px);
+    }
+
+    .shayari-content {
+        font-size: 1.05rem;
+        line-height: 1.8;
+        color: #E0E0E0;
+        font-style: italic;
+    }
+</style>

@@ -1,0 +1,155 @@
+@page "/my-shayaris"
+@using SheroShayari.Web.Models
+@using SheroShayari.Web.Services
+@using MudBlazor
+@inject IShayariApiClient ApiClient
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>My Shayaris - SheroShayari</PageTitle>
+
+@if (!AuthService.IsAuthenticated())
+{
+    <MudContainer MaxWidth="MaxWidth.Small" Class="py-8">
+        <MudAlert Severity="Severity.Warning" Class="mb-4">
+            You need to <MudLink Href="/login">login</MudLink> to view your Shayaris.
+        </MudAlert>
+    </MudContainer>
+}
+else
+{
+    <MudContainer MaxWidth="MaxWidth.Large" Class="py-8">
+        <MudStack Spacing="3" Class="mb-8">
+            <MudText Typo="Typo.h3">My Shayaris</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Tertiary">
+                Your private and public Shayaris collection
+            </MudText>
+        </MudStack>
+
+        @if (isLoading)
+        {
+            <MudStack AlignItems="AlignItems.Center" Spacing="2" Class="my-8">
+                <MudProgressCircular Size="Size.Large" Indeterminate="true" Color="Color.Primary" />
+                <MudText Typo="Typo.body2" Class="text-center">Loading your Shayaris...</MudText>
+            </MudStack>
+        }
+        else if (shayaris.Count == 0)
+        {
+            <MudPaper Elevation="1" Class="pa-6 text-center">
+                <MudText Typo="Typo.h6" Class="mb-4">You haven't created any Shayaris yet.</MudText>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/">
+                    Go create your first Shayari
+                </MudButton>
+            </MudPaper>
+        }
+        else
+        {
+            <MudGrid>
+                @foreach (var shayari in shayaris)
+                {
+                    <MudItem xs="12" sm="6" md="4" Class="mb-4">
+                        <MudCard Class="shayari-card h-100">
+                            <MudCardContent>
+                                @if (shayari.IsAiGenerated)
+                                {
+                                    <MudChip T="string" Color="Color.Secondary" Icon="@Icons.Material.Filled.AutoAwesome" Size="Size.Small" Class="mb-3">
+                                        AI Generated
+                                    </MudChip>
+                                }
+
+                                <MudText Typo="Typo.body1" Class="shayari-content mb-3">
+                                    "@shayari.Content"
+                                </MudText>
+
+                                <MudDivider Class="my-2" />
+
+                                <MudStack Spacing="1" Class="mt-3">
+                                    <MudText Typo="Typo.caption">
+                                        <strong>Poet:</strong> @shayari.Poet
+                                    </MudText>
+                                    <MudText Typo="Typo.caption">
+                                        <strong>Language:</strong> @shayari.Language
+                                    </MudText>
+                                    <MudText Typo="Typo.caption">
+                                        <strong>Category:</strong> @shayari.Category
+                                    </MudText>
+                                </MudStack>
+
+                                @if (!string.IsNullOrEmpty(shayari.Meaning))
+                                {
+                                    <MudExpansionPanel T="string" Class="mt-2">
+                                        <TitleContent>
+                                            <MudText Typo="Typo.subtitle2">Meaning</MudText>
+                                        </TitleContent>
+                                        <ChildContent>
+                                            <MudText Typo="Typo.body2">@shayari.Meaning</MudText>
+                                        </ChildContent>
+                                    </MudExpansionPanel>
+                                }
+
+                                <MudDivider Class="my-2" />
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="mt-2">
+                                    <MudText Typo="Typo.caption" Color="Color.Tertiary">
+                                        @shayari.CreatedAt.ToString("MMM dd, yyyy")
+                                    </MudText>
+                                    <MudSpacer />
+                                    @if (shayari.IsPublic)
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Primary">Public</MudChip>
+                                    }
+                                    else
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Warning">Private</MudChip>
+                                    }
+                                </MudStack>
+                            </MudCardContent>
+                        </MudCard>
+                    </MudItem>
+                }
+            </MudGrid>
+        }
+        <MudButton Class="pt-2 mt-2" Size="Size.Small" Variant =" Variant.Filled" Color="Color.Primary" Href="/">
+           Go Back
+        </MudButton>
+    </MudContainer>
+}
+
+@code {
+    private List<ShayariDto> shayaris = new();
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsAuthenticated())
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        isLoading = true;
+        shayaris = await ApiClient.GetMyShayarisAsync();
+        isLoading = false;
+    }
+}
+
+<style>
+    .shayari-card {
+        background: rgba(26, 26, 26, 0.8);
+        border: 1px solid rgba(212, 175, 55, 0.2);
+        transition: all 0.3s ease;
+    }
+
+    .shayari-card:hover {
+        border-color: #D4AF37;
+        box-shadow: 0 8px 24px rgba(212, 175, 55, 0.15);
+        transform: translateY(-4px);
+    }
+
+    .shayari-content {
+        font-size: 1.05rem;
+        line-height: 1.8;
+        color: #E0E0E0;
+        font-style: italic;
+    }
+</style>

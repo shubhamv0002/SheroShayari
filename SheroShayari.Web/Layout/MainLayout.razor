@@ -1,0 +1,118 @@
+﻿@inherits LayoutComponentBase
+@using MudBlazor
+@using SheroShayari.Web.Services
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<MudThemeProvider DefaultScrollbar="true" IsDarkMode="true" />
+<MudDialogProvider />
+<MudSnackbarProvider />
+<MudPopoverProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="0" Class="appbar-custom">
+        <MudText Typo="Typo.h4" Class="appbar-title">
+            SheroShayari
+        </MudText>
+        <MudSpacer />
+        @if (isAuthenticated)
+        {
+            <MudText Class="text-light me-4">Welcome, <strong>@GetDisplayName()</strong></MudText>
+            <MudButton Variant="Variant.Outlined" Color="Color.Inherit" Size="Size.Small" @onclick="HandleLogout">Logout
+            </MudButton>
+        }
+        else
+        {
+            <MudButton Variant="Variant.Outlined" Color="Color.Inherit" Size="Size.Small" @onclick="HandleLogout"
+                       Style="margin-right: 8px;">Login</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" @onclick="HandleRegister">Register
+            </MudButton>
+        }
+    </MudAppBar>
+
+    <MudMainContent Class="pa-6 pt-4 mt-2">
+        @Body
+    </MudMainContent>
+</MudLayout>
+
+<style>
+    .appbar-custom {
+        background: linear-gradient(90deg, #2A1A4A 0%, #3D2566 100%);
+        box-shadow: 0 4px 20px rgba(107, 76, 154, 0.3);
+    }
+
+    .appbar-title {
+        background: linear-gradient(90deg, #D4AF37 0%, #FFE082 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        font-weight: 700;
+        letter-spacing: 2px;
+    }
+</style>
+
+@code {
+    private bool isAuthenticated = false;
+    private string? _lastRoute;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await AuthService.InitializeAsync();
+        isAuthenticated = AuthService.IsAuthenticated();
+        await InvokeAsync(() => StateHasChanged());
+
+        // Subscribe to navigation events to update auth state when user navigates
+        Navigation.LocationChanged += OnLocationChanged;
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            isAuthenticated = AuthService.IsAuthenticated();
+            StateHasChanged();
+        }
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        // Update auth state whenever location changes
+        var newAuthState = AuthService.IsAuthenticated();
+        if (newAuthState != isAuthenticated)
+        {
+            isAuthenticated = newAuthState;
+            InvokeAsync(() => StateHasChanged());
+        }
+    }
+
+    private string GetDisplayName()
+    {
+        var user = AuthService.GetCurrentUser();
+
+        if (!string.IsNullOrWhiteSpace(user?.FullName) && !user.FullName.Contains("@"))
+        {
+            return user.FullName;
+        }
+
+        if (!string.IsNullOrWhiteSpace(user?.Email))
+        {
+            var namePart = user.Email.Split('@')[0];
+            return namePart;
+        }
+
+        return "User";
+    }
+
+    private async Task HandleLogout()
+    {
+        await AuthService.LogoutAsync();
+        isAuthenticated = false;
+        StateHasChanged();
+        Navigation.NavigateTo("/login");
+    }
+
+    private async Task HandleRegister()
+    {
+        Navigation.NavigateTo("/register");
+    }
+}

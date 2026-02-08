@@ -1,0 +1,117 @@
+@page "/login"
+@using SheroShayari.Web.Models
+@using SheroShayari.Web.Services
+@using MudBlazor
+@using System.ComponentModel.DataAnnotations
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>Login - SheroShayari</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="py-8">
+    <MudStack Spacing="3">
+        <MudText Typo="Typo.h3" Class="text-center">Login to SheroShayari</MudText>
+        <MudText Typo="Typo.body2" Class="text-center text-secondary">
+            Access your private Shayaris and generate new ones
+        </MudText>
+
+        <MudPaper Elevation="2" Class="pa-6">
+            <MudForm @ref="form" Model="@loginModel">
+                <MudTextField 
+                    @bind-Value="loginModel.Email"
+                    Label="Email"
+                    HelperText="Enter your email"
+                    Variant="Variant.Outlined"
+                    FullWidth="true"
+                    Class="mb-4"
+                    Disabled="isLoading"
+                    Required="true"
+                    RequiredError="Email is required"
+                    Validation='@(new EmailAddressAttribute { ErrorMessage = "Invalid email address" })' />
+
+                <MudTextField 
+                    @bind-Value="loginModel.Password"
+                    Label="Password"
+                    HelperText="Enter your password"
+                    Type="InputType.Password"
+                    Variant="Variant.Outlined"
+                    FullWidth="true"
+                    Class="mb-6"
+                    Disabled="isLoading"
+                    Required="true"
+                    RequiredError="Password is required" />
+
+                <MudButton 
+                    Variant="Variant.Filled"
+                    Color="Color.Primary"
+                    Size="Size.Large"
+                    FullWidth="true"
+                    OnClick="HandleLogin"
+                    Disabled="isLoading">
+                    @if (isLoading)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    }
+                    @if (isLoading) { <span>Logging in...</span> } else { <span>Login</span> }
+                </MudButton>
+
+                <MudDivider Class="my-6" />
+
+                <MudText Typo="Typo.body2" Class="text-center">
+                    Don't have an account? 
+                    <MudLink Href="/register">Register here</MudLink>
+                </MudText>
+
+                <MudText Typo="Typo.caption" Class="text-center mt-4">
+                    <MudLink Href="/forgot-password">Forgot your password?</MudLink>
+                </MudText>
+            </MudForm>
+        </MudPaper>
+    </MudStack>
+</MudContainer>
+
+@code {
+    private MudForm form = null!;
+    private bool isLoading = false;
+    private LoginRequest loginModel = new LoginRequest { Email = "", Password = "" };
+
+    protected override async Task OnInitializedAsync()
+    {
+        // If user is already authenticated, redirect to home
+        await AuthService.InitializeAsync();
+        if (AuthService.IsAuthenticated())
+        {
+            Navigation.NavigateTo("/", replace: true);
+            return;
+        }
+    }
+
+    private async Task HandleLogin()
+    {
+        if (form == null) return;
+        
+        await form.Validate();
+        if (!form.IsValid) return;
+
+        isLoading = true;
+
+        var (success, message, data) = await AuthService.LoginAsync(
+            loginModel.Email ?? string.Empty, 
+            loginModel.Password ?? string.Empty
+        );
+
+        isLoading = false;
+
+        if (success)
+        {
+            Snackbar.Add(message, Severity.Success);
+            await Task.Delay(500);
+            Navigation.NavigateTo("/");
+        }
+        else
+        {
+            Snackbar.Add(message, Severity.Error);
+        }
+    }
+}
