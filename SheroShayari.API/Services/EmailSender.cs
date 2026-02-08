@@ -101,13 +101,13 @@ public class EmailSender : IEmailSender
                 // Send the actual email
                 try
                 {
-                    _logger.LogInformation("Sending email to {Recipient} with subject '{Subject}'", maskedEmail, subject);
+                    _logger.LogInformation("Sending email with subject '{Subject}'", subject);
                     await client.SendAsync(message);
-                    _logger.LogInformation("✅ Email sent successfully to {Recipient}", maskedEmail);
+                    _logger.LogInformation("✅ Email sent successfully");
                 }
                 catch (Exception sendEx)
                 {
-                    _logger.LogError(sendEx, "❌ Failed to send email to {Recipient}. Error: {Message}", maskedEmail, sendEx.Message);
+                    _logger.LogError(sendEx, "❌ Failed to send email. Error: {Message}", sendEx.Message);
                     throw; // Re-throw for caller to handle
                 }
                 finally
